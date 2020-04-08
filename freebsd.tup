@@ -1,1 +1,10 @@
-CFLAGS += -include compat/freebsd.h
+CC = clang
+;CFLAGS += -g -include compat/freebsd.h -fsanitize=address -fno-omit-frame-pointer
+CFLAGS += -g -include compat/freebsd.h
+;LDFLAGS += -g -fsanitize=address
+
+TUP_SERVER = fuse
+
+ifeq ($(TUP_SERVER),ldpreload)
+LDFLAGS += -lprocstat
+endif

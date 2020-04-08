@@ -37,6 +37,14 @@
 #include <errno.h>
 #include <signal.h>
 
+#ifdef __FreeBSD__
+#include <sys/param.h>
+#include <sys/queue.h>
+#include <sys/socket.h>
+#include <sys/sysctl.h>
+#include <libprocstat.h>
+#endif
+
 #define TUP_TMP ".tup/tmp"
 #define LDPRELOAD_NAME "LD_PRELOAD"
 
@@ -53,14 +61,38 @@ static volatile sig_atomic_t sig_quit = 0;
 
 int server_pre_init(void)
 {
-	int exelen;
-
 	if(setpgid(0, 0) < 0) {
 		perror("setpgid");
 		fprintf(stderr, "tup error: Unable to set process group for tup's subprocesses.\n");
 		return -1;
 	}
-	exelen = readlink("/proc/self/exe", ldpreload_path, sizeof(ldpreload_path));
+#ifdef __FreeBSD__
+	struct procstat *prstat;
+	struct kinfo_proc *proc;
+	unsigned int cnt;
+
+	if((prstat = procstat_open_sysctl()) == NULL) {
+		fprintf( stderr, "tup error: procstat_open_sysctl failed.\n" );
+		return -1;
+	}
+
+	if((proc = procstat_getprocs(prstat, KERN_PROC_PID, getpid(), &cnt)) == NULL) {
+		fprintf( stderr, "tup error: procstat_getprocs failed.\n" );
+		return -1;
+	}
+
+	if(procstat_getpathname(prstat, proc, ldpreload_path, sizeof(ldpreload_path)) != 0) {
+		fprintf( stderr, "tup error: Unable to get the location of the tup executable.\n" );
+		return -1;
+	}
+
+	strncpy(ldpreload_path + strlen(ldpreload_path), "-ldpreload.so", sizeof(ldpreload_path) - strlen(ldpreload_path));
+
+	procstat_freeprocs( prstat, proc );
+	procstat_close( prstat );
+
+#else
+	int exelen = readlink("/proc/self/exe", ldpreload_path, sizeof(ldpreload_path));
 	if(exelen < 0) {
 		perror("/proc/self/exe");
 		fprintf(stderr, "tup error: Unable to read /proc/self/exe to determine the location of the tup executable.\n");
@@ -68,6 +100,7 @@ int server_pre_init(void)
 	}
 	ldpreload_path[exelen] = 0;
 	strncpy(ldpreload_path + exelen, "-ldpreload.so", sizeof(ldpreload_path) - exelen);
+#endif
 	return 0;
 }
 

@@ -45,11 +45,22 @@
 #include <errno.h>
 #include <pthread.h>
 
+#ifdef __FreeBSD__
+#include <sys/stat.h>
+#define STAT64_STRUCT stat
+#define STAT64_FUNCTION stat
+#else
+#define STAT64_STRUCT stat64
+#define STAT64_FUNCTION stat64
+#endif
+
+#ifndef __FreeBSD__
 int __xstat(int vers, const char *name, struct stat *buf);
 int stat64(const char *filename, struct stat64 *buf);
 int __xstat64(int __ver, __const char *__filename,
 	      struct stat64 *__stat_buf);
 int __lxstat64(int vers, const char *path, struct stat64 *buf);
+#endif
 char *__realpath_chk(const char *path, char *resolved_path, size_t resolvedlen);
 void _mcleanup(void);
 
@@ -61,10 +72,14 @@ static int ignore_file(const char *file);
 static int update_cwd(void);
 
 static int (*s_open)(const char *, int, ...);
+#ifndef __FreeBSD__
 static int (*s_open64)(const char *, int, ...);
+#endif
 static int (*s_openat)(int, const char *, int, ...);
 static FILE *(*s_fopen)(const char *, const char *);
+#ifndef __FreeBSD__
 static FILE *(*s_fopen64)(const char *, const char *);
+#endif
 static FILE *(*s_freopen)(const char *, const char *, FILE *);
 static int (*s_creat)(const char *, mode_t);
 static int (*s_symlink)(const char *, const char *);
@@ -86,10 +101,12 @@ static int (*s_execvp)(const char *file, char *const argv[]);
 static int (*s_chdir)(const char *path);
 static int (*s_fchdir)(int fd);
 static int (*s_xstat)(int vers, const char *name, struct stat *buf);
+#ifndef __FreeBSD__
 static int (*s_stat64)(const char *name, struct stat64 *buf);
 static int (*s_xstat64)(int vers, const char *name, struct stat64 *buf);
 static int (*s_lxstat64)(int vers, const char *path, struct stat64 *buf);
 static void (*s_mcleanup)(void);
+#endif
 
 #define WRAP(ptr, name) \
 	if(!ptr) { \
@@ -192,7 +209,7 @@ int open(const char *pathname, int flags, ...)
 	}
 	return rc;
 }
-
+#ifndef __FreeBSD__
 int open64(const char *pathname, int flags, ...)
 {
 	int rc;
@@ -217,7 +234,7 @@ int open64(const char *pathname, int flags, ...)
 	}
 	return rc;
 }
-
+#endif
 int openat(int dfd, const char *pathname, int flags, ...)
 {
 	int rc;
@@ -256,7 +273,7 @@ FILE *fopen(const char *path, const char *mode)
 	}
 	return f;
 }
-
+#ifndef __FreeBSD__
 FILE *fopen64(const char *path, const char *mode)
 {
 	FILE *f;
@@ -270,7 +287,7 @@ FILE *fopen64(const char *path, const char *mode)
 	}
 	return f;
 }
-
+#endif
 FILE *freopen(const char *path, const char *mode, FILE *stream)
 {
 	FILE *f;
@@ -535,7 +552,7 @@ int fchdir(int fd)
 	}
 	return rc;
 }
-
+#ifndef __FreeBSD__
 int __xstat(int vers, const char *name, struct stat *buf)
 {
 	int rc;
@@ -585,6 +602,7 @@ void _mcleanup(void)
 	handle_file("gmon.out", "", ACCESS_WRITE);
 	s_mcleanup();
 }
+#endif
 
 static int write_all(int fd, const void *data, int size)
 {
